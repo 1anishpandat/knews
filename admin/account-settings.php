@@ -1,9 +1,9 @@
 <?php
-session_start();
-if (!isset($_SESSION['admin'])) {
-    header("Location: login.php");
-    exit;
-}
+// session_start();
+// if (!isset($_SESSION['admin'])) {
+//     header("Location: login.php");
+//     exit;
+// }
 ?>
 
 <!DOCTYPE html>
@@ -12,9 +12,12 @@ if (!isset($_SESSION['admin'])) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Account Settings - Karnataka News</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <!-- Bootstrap CSS & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
+  <!-- Your custom CSS - only once -->
+  <link rel="stylesheet" href="css/style.css?v=<?php echo time(); ?>">
+ 
 
 </head>
 <body>
@@ -24,7 +27,7 @@ if (!isset($_SESSION['admin'])) {
     <?php include 'partials/navbar.php'; ?>
 
     <!-- Account Settings -->
-    <div class="container mt-5">
+    <div class="dashboard-content" style="margin-top: -550px !important; padding-top: 0 !important;">
       <div class="card shadow mx-auto" style="max-width: 600px;">
         <div class="card-body">
           <h4 class="mb-4">Account Settings</h4>

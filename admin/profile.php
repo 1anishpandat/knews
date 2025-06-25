@@ -1,9 +1,9 @@
 <?php
-session_start();
-if (!isset($_SESSION['admin'])) {
-    header("Location: login.php");
-    exit;
-}
+// session_start();
+// if (!isset($_SESSION['admin'])) {
+//     header("Location: login.php");
+//     exit;
+// }
 ?>
 
 <!DOCTYPE html>
@@ -24,7 +24,7 @@ if (!isset($_SESSION['admin'])) {
     <?php include 'partials/navbar.php'; ?>
 
     <!-- Profile Section -->
-    <div class="container mt-5">
+    <div class="dashboard-content" style="margin-top: -550px !important; padding-top: 0 !important;"> 
       <div class="card mx-auto shadow" style="max-width: 500px;">
         <div class="card-body text-center">
           <h4 class="mb-4">My Profile</h4>

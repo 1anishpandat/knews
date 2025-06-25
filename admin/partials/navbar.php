@@ -4,8 +4,10 @@
 <div class="flex-grow-1">
         <!-- Top Navbar -->
         <nav class="navbar navbar-light bg-light px-4 d-flex justify-content-between">
-        <div class="d-flex align-items-center header-search">
-  <button class="btn btn-outline-secondary me-2" id="sidebarToggle">&#9776;</button>
+         <div class="d-flex align-items-center header-search">
+        <button class="btn btn-outline-secondary me-2" id="sidebarToggle">&#9776;</button>
+
+
   <input class="form-control" type="search" placeholder="Search">
 </div>
 

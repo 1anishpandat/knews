@@ -5,6 +5,28 @@ if (!isset($_GET['id'])) {
     exit;
 }
 
+
+
+// Assume you get news ID from URL like ?id=123
+$newsId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+if ($newsId > 0) {
+    $check = $conn->prepare("SELECT id FROM news_analytics WHERE news_id = ? AND date_clicked = CURDATE()");
+    $check->bind_param("i", $newsId);
+    $check->execute();
+    $check->store_result();
+
+    if ($check->num_rows > 0) {
+        $conn->query("UPDATE news_analytics SET clicks = clicks + 1 WHERE news_id = $newsId AND date_clicked = CURDATE()");
+    } else {
+        $stmt = $conn->prepare("INSERT INTO news_analytics (news_id) VALUES (?)");
+        $stmt->bind_param("i", $newsId);
+        $stmt->execute();
+    }
+    $check->close();
+}
+
+
 $id = intval($_GET['id']);
 $stmt = $conn->prepare("SELECT * FROM news WHERE id = ?");
 $stmt->bind_param("i", $id);
@@ -35,7 +57,7 @@ if ($row = $result->fetch_assoc()) {
   <p class="text-sm text-gray-500 mb-2">Updated: <?php echo date("F j, Y", strtotime($row['created_at'])); ?></p>
   <p class="text-xs text-red-600 mb-4">Category: <?php echo htmlspecialchars($row['category']); ?></p>
   <img src="admin/<?php echo htmlspecialchars($row['image']); ?>" alt="News Image" class="w-full h-auto rounded mb-4" />
-  <p class="text-lg leading-relaxed"><?php echo nl2br(htmlspecialchars($row['brief'])); ?></p>
+  <p class="text-lg leading-relaxed"><?php echo nl2br(($row['brief'])); ?></p>
 </div>
 
 <?php include 'includes/footer.php'; ?>

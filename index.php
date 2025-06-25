@@ -41,6 +41,18 @@ function showNewsSection($category, $conn) {
     }
     echo "</div></div>";
 }
+// Include DB
+
+
+// Track visitor
+$pageUrl = $_SERVER['REQUEST_URI'];
+$ip = $_SERVER['REMOTE_ADDR'];
+$userAgent = $_SERVER['HTTP_USER_AGENT'];
+
+$stmt = $conn->prepare("INSERT INTO website_analytics (ip_address, user_agent, page_url) VALUES (?, ?, ?)");
+$stmt->bind_param("sss", $ip, $userAgent, $pageUrl);
+$stmt->execute();
+$stmt->close();
 
 ?>
 <!DOCTYPE html>
@@ -73,8 +85,114 @@ function showNewsSection($category, $conn) {
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 
-<body class="bg-gray-100 text-gray-800">
-
+<body class="bg-gray-100 text-gray-800">  <style>
+        /* Custom scrollbar styling */
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        
+        /* Video container styling */
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 280px;
+            background: #000;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 0.5rem;
+        }
+        
+        /* Loading placeholder */
+        .video-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 14px;
+            z-index: 1;
+        }
+        
+        /* Error state */
+        .video-error {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        /* Play button overlay */
+        .play-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 2;
+            transition: all 0.3s ease;
+        }
+        
+        .play-overlay:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+        
+        .play-button {
+            width: 0;
+            height: 0;
+            border-left: 20px solid white;
+            border-top: 12px solid transparent;
+            border-bottom: 12px solid transparent;
+            margin-left: 4px;
+        }
+        
+        /* Animation for cards */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .shorts-card {
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 640px) {
+            .video-container {
+                height: 240px;
+            }
+        }
+    </style>
   <!-- Include Layout & Features -->
   <?php include 'includes/header.php'; ?>
   <?php include 'includes/language-switcher.php'; ?>
@@ -374,113 +492,111 @@ function prevSlide() {
 
 
 <!-- Shorts Video Section -->
-<!-- Shorts Video Section - Centered -->
+<!-- Shorts Video Section (Dynamic from DB) -->
 <section class="py-10 bg-gray-100 rounded-b-lg shadow-inner max-w-7xl mx-auto px-6">
   <div class="flex items-center justify-between mb-6">
-    <h2 class="text-3xl font-bold text-gray-800">🎬 Shorts Video</h2>
+    <h2 class="text-3xl font-bold text-gray-800">🎮 Shorts Video</h2>
     <div class="space-x-3">
       <button onclick="scrollLeft()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-1 rounded-full shadow transition duration-200">←</button>
       <button onclick="scrollRight()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-1 rounded-full shadow transition duration-200">→</button>
     </div>
   </div>
-
   <div id="shortsContainer" class="flex overflow-x-auto space-x-4 scroll-smooth scrollbar-hide">
-    <!-- Shorts Cards -->
-    <div class="min-w-[200px] bg-white rounded-xl shadow-md p-2 flex-shrink-0 transition hover:scale-[1.02] duration-200">
-      <video class="rounded-lg w-full h-64 object-cover" controls loop muted>
-        <source src="a.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
-      <p class="text-sm mt-2 font-semibold text-gray-800">Short 1</p>
-    </div>
-
-    <div class="min-w-[200px] bg-white rounded-xl shadow-md p-2 flex-shrink-0 transition hover:scale-[1.02] duration-200">
-      <video class="rounded-lg w-full h-64 object-cover" controls loop muted>
-        <source src="a.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
-      <p class="text-sm mt-2 font-semibold text-gray-800">Short 2</p>
-    </div>
-
-    <div class="min-w-[200px] bg-white rounded-xl shadow-md p-2 flex-shrink-0 transition hover:scale-[1.02] duration-200">
-      <video class="rounded-lg w-full h-64 object-cover" controls loop muted>
-        <source src="a.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
-      <p class="text-sm mt-2 font-semibold text-gray-800">Short 3</p>
-    </div>
-
-    <div class="min-w-[200px] bg-white rounded-xl shadow-md p-2 flex-shrink-0 transition hover:scale-[1.02] duration-200">
-      <video class="rounded-lg w-full h-64 object-cover" controls loop muted>
-        <source src="a.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
-      <p class="text-sm mt-2 font-semibold text-gray-800">Short 4</p>
-    </div>
-
-    <div class="min-w-[200px] bg-white rounded-xl shadow-md p-2 flex-shrink-0 transition hover:scale-[1.02] duration-200">
-      <video class="rounded-lg w-full h-64 object-cover" controls loop muted>
-        <source src="a.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
-      <p class="text-sm mt-2 font-semibold text-gray-800">Short 5</p>
-    </div>
-
-    <div class="min-w-[200px] bg-white rounded-xl shadow-md p-2 flex-shrink-0 transition hover:scale-[1.02] duration-200">
-      <video class="rounded-lg w-full h-64 object-cover" controls loop muted>
-        <source src="a.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
-      <p class="text-sm mt-2 font-semibold text-gray-800">Short 6</p>
-    </div>
-
-    <div class="min-w-[200px] bg-white rounded-xl shadow-md p-2 flex-shrink-0 transition hover:scale-[1.02] duration-200">
-      <video class="rounded-lg w-full h-64 object-cover" controls loop muted>
-        <source src="a.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
-      <p class="text-sm mt-2 font-semibold text-gray-800">Short 7</p>
-    </div>
-
-    <div class="min-w-[200px] bg-white rounded-xl shadow-md p-2 flex-shrink-0 transition hover:scale-[1.02] duration-200">
-      <video class="rounded-lg w-full h-64 object-cover" controls loop muted>
-        <source src="a.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
-      <p class="text-sm mt-2 font-semibold text-gray-800">Short 8</p>
-    </div>
-
-    <div class="min-w-[200px] bg-white rounded-xl shadow-md p-2 flex-shrink-0 transition hover:scale-[1.02] duration-200">
-      <video class="rounded-lg w-full h-64 object-cover" controls loop muted>
-        <source src="a.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
-      <p class="text-sm mt-2 font-semibold text-gray-800">Short 9</p>
-    </div>
+    <?php
+    include("admin/db.php");
+    $result = $conn->query("SELECT * FROM shorts ORDER BY created_at DESC LIMIT 20");
+    if ($result->num_rows > 0):
+      while ($row = $result->fetch_assoc()):
+        $desc = htmlspecialchars($row['description']);
+        $video = $row['video_path'];
+        
+        // Fix the video path - make sure it's accessible from frontend
+        // If your frontend is in root and admin is in admin folder
+        $videoUrl = 'admin/' . $video;
+        
+        // Check if file exists before displaying
+        $fileExists = file_exists($videoUrl);
+    ?>
+      <div class="min-w-[200px] bg-white rounded-xl shadow-md p-2 flex-shrink-0 transition hover:scale-[1.02] duration-200">
+        <?php if ($fileExists): ?>
+          <video class="rounded-lg w-full h-64 object-cover" controls loop muted preload="metadata" onloadstart="this.muted=true">
+            <source src="<?php echo htmlspecialchars($videoUrl); ?>" type="video/mp4">
+            <source src="<?php echo htmlspecialchars($videoUrl); ?>" type="video/webm">
+            <source src="<?php echo htmlspecialchars($videoUrl); ?>" type="video/ogg">
+            Your browser does not support the video tag.
+          </video>
+        <?php else: ?>
+          <div class="rounded-lg w-full h-64 bg-gray-200 flex items-center justify-center">
+            <div class="text-center text-gray-500">
+              <i class="text-4xl">📹</i>
+              <p class="text-sm mt-2">Video not found</p>
+              <small class="text-xs text-gray-400">Path: <?php echo htmlspecialchars($video); ?></small>
+            </div>
+          </div>
+        <?php endif; ?>
+        <p class="text-sm mt-2 font-semibold text-gray-800"><?php echo $desc; ?></p>
+        
+        <!-- Debug info (remove in production) -->
+        <?php if (!$fileExists): ?>
+          <small class="text-xs text-red-500 block mt-1">
+            Debug: Looking for file at: <?php echo htmlspecialchars($videoUrl); ?>
+          </small>
+        <?php endif; ?>
+      </div>
+    <?php endwhile; else: ?>
+      <div class="min-w-[200px] bg-white rounded-xl shadow-md p-4 flex-shrink-0 text-center">
+        <div class="text-6xl mb-4">📱</div>
+        <p class="text-gray-600">No shorts uploaded yet.</p>
+      </div>
+    <?php endif; ?>
   </div>
 </section>
-
 
 <script>
   function scrollLeft() {
     document.getElementById('shortsContainer').scrollBy({ left: -220, behavior: 'smooth' });
   }
-
   function scrollRight() {
     document.getElementById('shortsContainer').scrollBy({ left: 220, behavior: 'smooth' });
   }
+  
+  // Auto-mute all videos on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    const videos = document.querySelectorAll('#shortsContainer video');
+    videos.forEach(video => {
+      video.muted = true;
+      video.addEventListener('loadeddata', function() {
+        console.log('Video loaded:', this.src);
+      });
+      video.addEventListener('error', function() {
+        console.error('Video failed to load:', this.src);
+        // Replace video with error message
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'rounded-lg w-full h-64 bg-red-100 flex items-center justify-center text-red-600';
+        errorDiv.innerHTML = '<div class="text-center"><i class="text-4xl">❌</i><p class="text-sm mt-2">Failed to load video</p></div>';
+        this.parentNode.replaceChild(errorDiv, this);
+      });
+    });
+  });
 </script>
 
-<!-- Slider Script -->
-<script>
-  const container = document.getElementById("shortsContainer");
-  function scrollLeft() {
-    container.scrollBy({ left: -220, behavior: 'smooth' });
+<style>
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
-  function scrollRight() {
-    container.scrollBy({ left: 220, behavior: 'smooth' });
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
-</script>
+  
+  /* Ensure videos don't exceed container */
+  #shortsContainer video {
+    max-width: 100%;
+    height: 256px;
+    object-fit: cover;
+  }
+</style>
 
 <!-- Featured News Section - Centered -->
 <section class="mb-12 py-10 max-w-7xl mx-auto px-6">
