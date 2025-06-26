@@ -54,6 +54,30 @@ $stmt->bind_param("sss", $ip, $userAgent, $pageUrl);
 $stmt->execute();
 $stmt->close();
 
+
+// Fetch all shorts data upfront for the popup
+// Fetch all shorts data and store them in an array to pass to JS
+$allShortsData = [];
+$shortsResult = $conn->query("SELECT id, description, video_path FROM shorts ORDER BY created_at DESC LIMIT 20");
+if ($shortsResult->num_rows > 0) {
+    while ($row = $shortsResult->fetch_assoc()) {
+        // Build the full video URL for JavaScript
+        $videoUrl = 'admin/' . $row['video_path']; 
+        
+        // Check if file exists to prevent broken video tags
+        $fileExists = file_exists($videoUrl);
+
+        $allShortsData[] = [
+            'id' => $row['id'],
+            'description' => htmlspecialchars($row['description']),
+            'video_url' => $fileExists ? htmlspecialchars($videoUrl) : null, // Only provide URL if file exists
+            'fileExists' => $fileExists // Pass boolean for client-side check
+        ];
+    }
+}
+$shortsResult->free_result(); // Free up memory
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -491,156 +515,580 @@ function prevSlide() {
 
 
 
-<!-- Shorts Video Section -->
-<!-- Shorts Video Section (Dynamic from DB) -->
+
 <section class="py-10 bg-gray-100 rounded-b-lg shadow-inner max-w-7xl mx-auto px-6">
-  <div class="flex items-center justify-between mb-6">
-    <h2 class="text-3xl font-bold text-gray-800">🎮 Shorts Video</h2>
-    <div class="space-x-3">
-      <button onclick="scrollLeft()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-1 rounded-full shadow transition duration-200">←</button>
-      <button onclick="scrollRight()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-1 rounded-full shadow transition duration-200">→</button>
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-3xl font-bold text-gray-800">🎮 Shorts Video</h2>
+        <div class="space-x-3">
+            <button onclick="scrollLeft()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-1 rounded-full shadow transition duration-200">←</button>
+            <button onclick="scrollRight()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-1 rounded-full shadow transition duration-200">→</button>
+        </div>
     </div>
-  </div>
-  <div id="shortsContainer" class="flex overflow-x-auto space-x-4 scroll-smooth scrollbar-hide">
-    <?php
-    include("admin/db.php");
-    $result = $conn->query("SELECT * FROM shorts ORDER BY created_at DESC LIMIT 20");
-    if ($result->num_rows > 0):
-      while ($row = $result->fetch_assoc()):
-        $desc = htmlspecialchars($row['description']);
-        $video = $row['video_path'];
-        
-        // Fix the video path - make sure it's accessible from frontend
-        // If your frontend is in root and admin is in admin folder
-        $videoUrl = 'admin/' . $video;
-        
-        // Check if file exists before displaying
-        $fileExists = file_exists($videoUrl);
-    ?>
-      <div class="min-w-[200px] bg-white rounded-xl shadow-md p-2 flex-shrink-0 transition hover:scale-[1.02] duration-200">
-        <?php if ($fileExists): ?>
-          <video class="rounded-lg w-full h-64 object-cover" controls loop muted preload="metadata" onloadstart="this.muted=true">
-            <source src="<?php echo htmlspecialchars($videoUrl); ?>" type="video/mp4">
-            <source src="<?php echo htmlspecialchars($videoUrl); ?>" type="video/webm">
-            <source src="<?php echo htmlspecialchars($videoUrl); ?>" type="video/ogg">
-            Your browser does not support the video tag.
-          </video>
+    <div id="shortsContainer" class="flex overflow-x-auto space-x-4 scroll-smooth scrollbar-hide">
+        <?php if (!empty($allShortsData)): ?>
+            <?php foreach ($allShortsData as $index => $short): ?>
+                <div class="shorts-thumbnail min-w-[200px] bg-white rounded-xl shadow-md p-2 flex-shrink-0 transition hover:scale-[1.02] duration-200 cursor-pointer" 
+                     data-short-id="<?php echo $short['id']; ?>"
+                     data-short-index="<?php echo $index; ?>">
+                    <?php if ($short['fileExists']): ?>
+                        <video class="rounded-lg w-full h-64 object-cover" 
+                               src="<?php echo $short['video_url']; ?>#t=1" 
+                               preload="metadata" 
+                               muted 
+                               playsinline>
+                            Your browser does not support the video tag.
+                        </video>
+                        <p class="text-sm mt-2 font-semibold text-gray-800 line-clamp-2"><?php echo $short['description']; ?></p>
+                    <?php else: ?>
+                        <div class="rounded-lg w-full h-64 bg-gray-200 flex items-center justify-center">
+                            <div class="text-center text-gray-500">
+                                <i class="text-4xl">📹</i>
+                                <p class="text-sm mt-2">Video not found</p>
+                                <small class="text-xs text-gray-400">Path: <?php echo htmlspecialchars($short['video_url']); ?></small>
+                            </div>
+                        </div>
+                        <p class="text-sm mt-2 font-semibold text-gray-800"><?php echo $short['description']; ?></p>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
         <?php else: ?>
-          <div class="rounded-lg w-full h-64 bg-gray-200 flex items-center justify-center">
-            <div class="text-center text-gray-500">
-              <i class="text-4xl">📹</i>
-              <p class="text-sm mt-2">Video not found</p>
-              <small class="text-xs text-gray-400">Path: <?php echo htmlspecialchars($video); ?></small>
+            <div class="min-w-[200px] bg-white rounded-xl shadow-md p-4 flex-shrink-0 text-center">
+                <div class="text-6xl mb-4">📱</div>
+                <p class="text-gray-600">No shorts uploaded yet.</p>
             </div>
-          </div>
         <?php endif; ?>
-        <p class="text-sm mt-2 font-semibold text-gray-800"><?php echo $desc; ?></p>
-        
-        <!-- Debug info (remove in production) -->
-        <?php if (!$fileExists): ?>
-          <small class="text-xs text-red-500 block mt-1">
-            Debug: Looking for file at: <?php echo htmlspecialchars($videoUrl); ?>
-          </small>
-        <?php endif; ?>
-      </div>
-    <?php endwhile; else: ?>
-      <div class="min-w-[200px] bg-white rounded-xl shadow-md p-4 flex-shrink-0 text-center">
-        <div class="text-6xl mb-4">📱</div>
-        <p class="text-gray-600">No shorts uploaded yet.</p>
-      </div>
-    <?php endif; ?>
-  </div>
+    </div>
 </section>
 
+<section class="mb-12 py-10 max-w-7xl mx-auto px-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold text-gray-800">📰 Featured News</h2>
+        <div class="space-x-2">
+            <button onclick="scrollNewsLeft()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-3 py-1 rounded">←</button>
+            <button onclick="scrollNewsRight()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-3 py-1 rounded">→</button>
+        </div>
+    </div>
+
+    <div id="featuredNewsContainer" class="flex overflow-x-auto space-x-4 scroll-smooth scrollbar-hide">
+        <?php
+        // Re-include db.php if it was closed before, otherwise remove this line.
+        // For this example, assuming it's available.
+        // include("admin/db.php");
+        $stmt = $conn->prepare("SELECT * FROM news WHERE category = 'Featured News' ORDER BY created_at DESC LIMIT 10");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            echo '<a href="news-detail.php?id=' . $row['id'] . '" class="w-64 h-64 bg-gray-100 rounded-lg shadow flex-shrink-0 overflow-hidden block">';
+            echo '<div class="relative w-full h-full">';
+            echo '<img src="admin/' . htmlspecialchars($row['image']) . '" class="object-cover w-full h-full" alt="' . htmlspecialchars($row['title']) . '">';
+            echo '<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">';
+            echo '<h3 class="text-white font-bold text-sm leading-tight line-clamp-2">' . htmlspecialchars($row['title']) . '</h3>';
+            echo '</div>';
+            echo '</div>';
+            echo '</a>';
+        }
+        $stmt->free_result();
+        // If $conn is only used here, you can close it: $conn->close();
+        ?>
+    </div>
+</section>
+
+<div id="shortsModal" class="shorts-modal hidden">
+    <div class="shorts-modal-content">
+        <span class="shorts-close-btn">&times;</span>
+        <div class="shorts-video-feed">
+            </div>
+    </div>
+</div>
+
 <script>
-  function scrollLeft() {
-    document.getElementById('shortsContainer').scrollBy({ left: -220, behavior: 'smooth' });
-  }
-  function scrollRight() {
-    document.getElementById('shortsContainer').scrollBy({ left: 220, behavior: 'smooth' });
-  }
-  
-  // Auto-mute all videos on page load
-  document.addEventListener('DOMContentLoaded', function() {
-    const videos = document.querySelectorAll('#shortsContainer video');
-    videos.forEach(video => {
-      video.muted = true;
-      video.addEventListener('loadeddata', function() {
-        console.log('Video loaded:', this.src);
-      });
-      video.addEventListener('error', function() {
-        console.error('Video failed to load:', this.src);
-        // Replace video with error message
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'rounded-lg w-full h-64 bg-red-100 flex items-center justify-center text-red-600';
-        errorDiv.innerHTML = '<div class="text-center"><i class="text-4xl">❌</i><p class="text-sm mt-2">Failed to load video</p></div>';
-        this.parentNode.replaceChild(errorDiv, this);
-      });
+    // PHP data passed to JavaScript
+    const allShorts = <?php echo json_encode($allShortsData); ?>;
+
+    // --- Start of Frontend Shorts UI & Analytics JavaScript ---
+
+    function scrollLeft() {
+        document.getElementById('shortsContainer').scrollBy({ left: -220, behavior: 'smooth' });
+    }
+    function scrollRight() {
+        document.getElementById('shortsContainer').scrollBy({ left: 220, behavior: 'smooth' });
+    }
+
+    // Function to record a short view via AJAX
+    function recordShortView(shortsId) {
+        const viewedShortsKey = 'viewedShortsToday';
+        let viewedShorts = JSON.parse(sessionStorage.getItem(viewedShortsKey)) || {};
+        const today = new Date().toISOString().slice(0, 10); //YYYY-MM-DD format
+
+        if (viewedShorts[shortsId] === today) {
+            console.log(`View for Short ID ${shortsId} already recorded in this session today.`);
+            return;
+        }
+
+        fetch(`admin/view_short.php?shorts_id=${shortsId}`) // Adjust path if needed
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log(`Short ID ${shortsId} view recorded successfully!`);
+                    viewedShorts[shortsId] = today;
+                    sessionStorage.setItem(viewedShortsKey, JSON.stringify(viewedShorts));
+                } else {
+                    console.error(`Error recording short view for ID ${shortsId}:`, data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Fetch operation failed:', error);
+            });
+    }
+
+    // Modal elements
+    const shortsModal = document.getElementById('shortsModal');
+    const shortsCloseBtn = document.querySelector('.shorts-close-btn');
+    const shortsVideoFeed = document.querySelector('.shorts-video-feed');
+    let currentShortIndex = 0;
+    let playingVideoElement = null; // To keep track of the currently playing video
+
+    // Function to render a single short in the modal
+    function renderShort(short, index) {
+        const shortItem = document.createElement('div');
+        shortItem.classList.add('shorts-modal-item');
+        shortItem.dataset.shortIndex = index;
+
+        if (short.fileExists && short.video_url) {
+            shortItem.innerHTML = `
+                <video class="shorts-modal-video" src="${short.video_url}" loop muted playsinline></video>
+                <button class="play-pause-btn" aria-label="Play/Pause">
+                    <i class="play-pause-icon">▶</i>
+                </button>
+                <div class="shorts-modal-description">
+                    <p>${short.description}</p>
+                </div>
+            `;
+        } else {
+            shortItem.innerHTML = `
+                <div class="shorts-modal-video-placeholder">
+                    <i class="text-4xl">❌</i>
+                    <p class="text-sm mt-2">Video not available</p>
+                    <small class="text-xs text-gray-400">Path: ${short.video_url || 'N/A'}</small>
+                </div>
+                <div class="shorts-modal-description">
+                    <p>${short.description}</p>
+                </div>
+            `;
+        }
+        return shortItem;
+    }
+
+    // Function to open the modal
+    function openShortsModal(startIndex) {
+        currentShortIndex = startIndex;
+        shortsVideoFeed.innerHTML = ''; // Clear previous content
+
+        // Load all shorts for smooth scrolling
+        for (let i = 0; i < allShorts.length; i++) {
+            const short = allShorts[i];
+            const shortElement = renderShort(short, i);
+            shortsVideoFeed.appendChild(shortElement);
+        }
+        
+        shortsModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden'; // Prevent body scrolling
+
+        // Scroll to the selected short and start playing
+        setTimeout(() => { // Small delay to allow rendering
+            const targetElement = shortsVideoFeed.querySelector(`[data-short-index="${startIndex}"]`);
+            if (targetElement) {
+                shortsVideoFeed.scrollTop = targetElement.offsetTop;
+                playShortAtIndex(startIndex);
+            }
+            // Add event listeners for play/pause buttons after elements are rendered
+            addPlayPauseButtonListeners();
+        }, 50); // Adjust delay if needed
+    }
+
+    // Function to toggle play/pause for a specific video
+    function togglePlayPause(videoElement, buttonElement) {
+        if (!videoElement || !buttonElement) return;
+
+        const iconElement = buttonElement.querySelector('.play-pause-icon');
+
+        if (videoElement.paused) {
+            videoElement.play().catch(error => {
+                console.error("Video play failed:", error);
+            });
+            // When playing, hide the button
+            buttonElement.classList.add('hidden');
+        } else {
+            videoElement.pause();
+            // When paused, show the button and set to play icon
+            buttonElement.classList.remove('hidden');
+            iconElement.textContent = '▶';
+        }
+    }
+
+    // Update play/pause button state based on video state
+    function updatePlayPauseButtonState(videoElement, buttonElement) {
+        if (!videoElement || !buttonElement) return;
+
+        const iconElement = buttonElement.querySelector('.play-pause-icon');
+        if (videoElement.paused) {
+            buttonElement.classList.remove('hidden'); // Show button
+            iconElement.textContent = '▶'; // Set to play icon
+        } else {
+            buttonElement.classList.add('hidden'); // Hide button
+        }
+    }
+
+    // Add click listeners to all play/pause buttons
+    function addPlayPauseButtonListeners() {
+        shortsVideoFeed.querySelectorAll('.play-pause-btn').forEach(button => {
+            button.onclick = (event) => {
+                event.stopPropagation(); // Prevent clicks from interacting with the video directly if you add video click listeners later
+                const videoElement = button.closest('.shorts-modal-item').querySelector('.shorts-modal-video');
+                togglePlayPause(videoElement, button);
+            };
+        });
+
+        // Add a click listener to the video itself to toggle play/pause and show/hide button
+        shortsVideoFeed.querySelectorAll('.shorts-modal-video').forEach(video => {
+            video.onclick = (event) => {
+                event.stopPropagation();
+                const buttonElement = video.closest('.shorts-modal-item').querySelector('.play-pause-btn');
+                togglePlayPause(video, buttonElement);
+            };
+
+            // Event listeners to update button visibility
+            video.onplay = () => {
+                const buttonElement = video.closest('.shorts-modal-item').querySelector('.play-pause-btn');
+                if (buttonElement) buttonElement.classList.add('hidden'); // Hide button when playing
+            };
+            video.onpause = () => {
+                const buttonElement = video.closest('.shorts-modal-item').querySelector('.play-pause-btn');
+                if (buttonElement) {
+                    buttonElement.classList.remove('hidden'); // Show button when paused
+                    buttonElement.querySelector('.play-pause-icon').textContent = '▶'; // Ensure it's a play icon
+                }
+            };
+            video.onended = () => {
+                const buttonElement = video.closest('.shorts-modal-item').querySelector('.play-pause-btn');
+                if (buttonElement) {
+                    buttonElement.classList.remove('hidden'); // Show button when ended (which is a paused state)
+                    buttonElement.querySelector('.play-pause-icon').textContent = '▶';
+                }
+            };
+        });
+    }
+
+
+    // Function to play a specific short and pause others
+    function playShortAtIndex(index) {
+        // Pause and reset the previously playing video
+        if (playingVideoElement) {
+            playingVideoElement.pause();
+            playingVideoElement.currentTime = 0; // Reset for next time
+            playingVideoElement.muted = true; // Ensure it stays muted when out of focus
+            // Show play button for previously playing video
+            const prevButton = playingVideoElement.closest('.shorts-modal-item')?.querySelector('.play-pause-btn');
+            if (prevButton) {
+                prevButton.classList.remove('hidden');
+                prevButton.querySelector('.play-pause-icon').textContent = '▶';
+            }
+        }
+
+        const targetElement = shortsVideoFeed.querySelector(`[data-short-index="${index}"]`);
+        if (targetElement) {
+            const video = targetElement.querySelector('.shorts-modal-video');
+            const button = targetElement.querySelector('.play-pause-btn');
+
+            if (video) {
+                video.muted = false; // Unmute current playing video
+                video.play().catch(error => {
+                    console.error("Video play failed:", error);
+                    // This often happens if not muted on autoplay. The user will have to click the button.
+                });
+                playingVideoElement = video;
+                // Hide button immediately as video attempts to play
+                if (button) button.classList.add('hidden'); 
+                recordShortView(allShorts[index].id); // Record view when video starts playing
+            }
+        }
+        currentShortIndex = index;
+    }
+
+    // Handle scroll to detect current video and play it
+    let scrollTimeout;
+    shortsVideoFeed.addEventListener('scroll', () => {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+            // Get all shorts items
+            const shortItems = Array.from(shortsVideoFeed.children);
+            let closestItem = null;
+            let minDistance = Infinity;
+
+            // Determine which short item is most "in view"
+            shortItems.forEach(item => {
+                const rect = item.getBoundingClientRect();
+                // Calculate distance from center of viewport to center of item
+                const viewportCenter = window.innerHeight / 2;
+                const itemCenter = rect.top + rect.height / 2;
+                const distance = Math.abs(viewportCenter - itemCenter);
+
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestItem = item;
+                }
+            });
+
+            if (closestItem) {
+                const newIndex = parseInt(closestItem.dataset.shortIndex);
+                // Only play if it's a new short or if the currently playing one is off-screen
+                if (newIndex !== currentShortIndex || !playingVideoElement || !closestItem.contains(playingVideoElement)) {
+                    playShortAtIndex(newIndex);
+                }
+            }
+        }, 150); // Debounce scroll event
     });
-  });
+
+    // Close modal
+    shortsCloseBtn.addEventListener('click', () => {
+        shortsModal.classList.add('hidden');
+        document.body.style.overflow = ''; // Restore body scrolling
+        if (playingVideoElement) {
+            playingVideoElement.pause();
+            playingVideoElement = null; // Clear reference
+        }
+    });
+
+    // Handle clicks on thumbnails to open modal
+    document.addEventListener('DOMContentLoaded', function() {
+        const thumbnailElements = document.querySelectorAll('.shorts-thumbnail');
+        thumbnailElements.forEach(thumbnail => {
+            thumbnail.addEventListener('click', function() {
+                const startIndex = parseInt(this.dataset.shortIndex);
+                openShortsModal(startIndex);
+            });
+            
+            // Also mute initial videos in the carousel
+            const carouselVideo = thumbnail.querySelector('video');
+            if(carouselVideo) {
+                carouselVideo.muted = true;
+                // Optional: Play on hover for a preview effect in the carousel
+                thumbnail.addEventListener('mouseenter', () => carouselVideo.play().catch(e => console.log("Play failed on hover:",e)));
+                thumbnail.addEventListener('mouseleave', () => carouselVideo.pause());
+            }
+        });
+
+        // Error handling for initial carousel videos
+        const videos = document.querySelectorAll('#shortsContainer video');
+        videos.forEach(video => {
+            video.addEventListener('loadeddata', function() {
+                console.log('Carousel Video loaded:', this.src);
+            });
+            video.addEventListener('error', function() {
+                console.error('Carousel Video failed to load:', this.src);
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'rounded-lg w-full h-64 bg-red-100 flex items-center justify-center text-red-600';
+                errorDiv.innerHTML = '<div class="text-center"><i class="text-4xl">❌</i><p class="text-sm mt-2">Failed to load video</p></div>';
+                this.parentNode.replaceChild(errorDiv, this);
+            });
+        });
+    });
+
+    // --- End of Frontend Shorts UI & Analytics JavaScript ---
 </script>
+
+---
 
 <style>
-  /* Hide scrollbar but keep functionality */
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-  
-  /* Ensure videos don't exceed container */
-  #shortsContainer video {
-    max-width: 100%;
-    height: 256px;
-    object-fit: cover;
-  }
-</style>
-
-<!-- Featured News Section - Centered -->
-<section class="mb-12 py-10 max-w-7xl mx-auto px-6">
-  <div class="flex items-center justify-between mb-4">
-    <h2 class="text-2xl font-bold text-gray-800">📰 Featured News</h2>
-    <div class="space-x-2">
-      <button onclick="scrollNewsLeft()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-3 py-1 rounded">←</button>
-      <button onclick="scrollNewsRight()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-3 py-1 rounded">→</button>
-    </div>
-  </div>
-
-  <div id="featuredNewsContainer" class="flex overflow-x-auto space-x-4 scroll-smooth scrollbar-hide">
-    <?php
-    include("admin/db.php");
-    $stmt = $conn->prepare("SELECT * FROM news WHERE category = 'Featured News' ORDER BY created_at DESC LIMIT 10");
-    $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-      echo '<a href="news-detail.php?id=' . $row['id'] . '" class="w-64 h-64 bg-gray-100 rounded-lg shadow flex-shrink-0 overflow-hidden block">';
-      echo '<div class="relative w-full h-full">';
-      echo '<img src="admin/' . htmlspecialchars($row['image']) . '" class="object-cover w-full h-full" alt="' . htmlspecialchars($row['title']) . '">';
-      echo '<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">';
-      echo '<h3 class="text-white font-bold text-sm leading-tight line-clamp-2">' . htmlspecialchars($row['title']) . '</h3>';
-      echo '</div>';
-      echo '</div>';
-      echo '</a>';
+    /* Hide scrollbar but keep functionality */
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
     }
-    ?>
-  </div>
-</section>
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+    
+    /* Ensure videos don't exceed container */
+    #shortsContainer video {
+        max-width: 100%;
+        height: 256px;
+        object-fit: cover;
+    }
 
-<!-- Slider Script -->
-<script>
-  const featuredContainer = document.getElementById("featuredNewsContainer");
-  function scrollNewsLeft() {
-    featuredContainer.scrollBy({ left: -300, behavior: 'smooth' });
-  }
-  function scrollNewsRight() {
-    featuredContainer.scrollBy({ left: 300, behavior: 'smooth' });
-  }
-</script>
+    /* --- New Modal Styles --- */
+    .shorts-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.9); /* Dark overlay */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000; /* Ensure it's on top */
+    }
 
+    .shorts-modal.hidden {
+        display: none;
+    }
 
+    .shorts-modal-content {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        max-width: 400px; /* Max width for the shorts feed */
+        max-height: 90vh; /* Max height for the feed */
+        background-color: #000; /* Black background for videos */
+        border-radius: 10px;
+        overflow: hidden; /* For rounded corners */
+        display: flex;
+        flex-direction: column;
+    }
 
+    .shorts-close-btn {
+        position: absolute;
+        top: 15px;
+        right: 25px;
+        color: #fff;
+        font-size: 35px;
+        font-weight: bold;
+        cursor: pointer;
+        z-index: 1010; /* Above video content */
+        background-color: rgba(0,0,0,0.5);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .shorts-close-btn:hover {
+        color: #ddd;
+    }
+
+    .shorts-video-feed {
+        flex-grow: 1;
+        overflow-y: scroll; /* Enable vertical scrolling */
+        scroll-snap-type: y mandatory; /* Smooth snap effect */
+        -webkit-overflow-scrolling: touch; /* For smoother scrolling on iOS */
+        display: flex;
+        flex-direction: column;
+    }
+
+    .shorts-modal-item {
+        flex-shrink: 0; /* Important: prevents items from shrinking */
+        width: 100%;
+        height: 100vh; /* Each item takes full viewport height for scrolling */
+        display: flex;
+        flex-direction: column;
+        justify-content: center; /* Center video vertically */
+        align-items: center;
+        position: relative;
+        scroll-snap-align: center; /* Snap to center when scrolling */
+        background-color: #000; /* Fallback for video background */
+        /* cursor: pointer; REMOVED to avoid confusion, button handles click */
+    }
+
+    .shorts-modal-video {
+        width: 100%;
+        max-height: 100%; /* Ensure video fits within the height */
+        object-fit: contain; /* Maintain aspect ratio and fit within bounds */
+        display: block; /* Remove extra space below video */
+    }
+
+    .shorts-modal-video-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background-color: #333;
+        color: #ccc;
+        text-align: center;
+    }
+
+    .shorts-modal-description {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%);
+        color: #fff;
+        padding: 20px;
+        font-size: 1.1rem;
+        text-align: center;
+        padding-bottom: 50px; /* Space for future controls/info */
+        z-index: 5; /* Ensure description is above video */
+        pointer-events: none; /* Description shouldn't block clicks to video/button */
+    }
+    
+    /* --- Custom Play/Pause Button Styles --- */
+    .play-pause-btn {
+        position: absolute; /* Position over the video */
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%); /* Center it perfectly */
+        background-color: rgba(0, 0, 0, 0.2); /* Light dark background */
+        border: none;
+        border-radius: 50%; /* Make it circular */
+        width: 70px;
+        height: 70px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        transition: background-color 0.2s ease, opacity 0.3s ease;
+        z-index: 10; /* Above video, below close button */
+        pointer-events: all; /* Make button clickable */
+        opacity: 1; /* Default visible state (when paused) */
+    }
+
+    .play-pause-btn:hover {
+        background-color: rgba(0, 0, 0, 0.4); /* Slightly darker on hover */
+    }
+
+    /* When the video is playing, the button itself gets the 'hidden' class */
+    .play-pause-btn.hidden {
+        opacity: 0; /* Fade out */
+        pointer-events: none; /* No interaction when hidden */
+    }
+
+    .play-pause-btn .play-pause-icon {
+        color: white;
+        font-size: 3rem; /* Large icon */
+        line-height: 1; /* Adjust vertical alignment */
+        pointer-events: none; /* Icon itself shouldn't block clicks on the button */
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .shorts-modal-content {
+            max-width: 100%; /* Full width on smaller screens */
+            max-height: 100vh; /* Full height on smaller screens */
+            border-radius: 0; /* No rounded corners on mobile */
+        }
+        .shorts-close-btn {
+            top: 10px;
+            right: 10px;
+            font-size: 30px;
+        }
+        .play-pause-btn {
+            width: 60px;
+            height: 60px;
+        }
+        .play-pause-btn .play-pause-icon {
+            font-size: 2.5rem;
+        }
+    }
+</style>
 
 <!-- Health Section - Centered -->
 <section class="mb-12 py-10 max-w-7xl mx-auto px-6">
