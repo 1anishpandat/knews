@@ -285,8 +285,7 @@ $shortsResult->free_result(); // Free up memory
     <div class="md:col-span-3 space-y-4">
       <h2 class="text-2xl font-bold text-gray-800 mb-4">🔥 Trending</h2>
       <?php
-      include("admin/db.php");
-      $stmt = $conn->prepare("SELECT * FROM news WHERE category = 'Trending' ORDER BY created_at DESC LIMIT 2");
+      $stmt = $conn->prepare("SELECT * FROM news WHERE category = 'Trending' AND status = 'public' ORDER BY created_at DESC LIMIT 2");
       $stmt->execute();
       $result = $stmt->get_result();
       while ($row = $result->fetch_assoc()) {
@@ -308,7 +307,7 @@ $shortsResult->free_result(); // Free up memory
   <div id="newsSlides" class="relative w-full h-full overflow-hidden">
     <div id="slidesWrapper" class="flex transition-transform duration-500 ease-in-out h-full">
       <?php
-      $carousel = $conn->prepare("SELECT * FROM news WHERE category != 'Ad' ORDER BY created_at DESC LIMIT 4");
+      $carousel = $conn->prepare("SELECT * FROM news WHERE category != 'Ad' AND status = 'public' ORDER BY created_at DESC LIMIT 4");
       $carousel->execute();
       $carousel_result = $carousel->get_result();
       while ($row = $carousel_result->fetch_assoc()) {
@@ -326,7 +325,6 @@ $shortsResult->free_result(); // Free up memory
       ?>
     </div>
   </div>
-
   <!-- Navigation Buttons -->
   <div class="absolute top-1/2 left-0 -translate-y-1/2 px-2 z-10">
     <button onclick="prevSlide()" class="bg-gray-300 hover:bg-gray-100 text-black font-bold py-2 px-3 rounded-full shadow">&larr;</button>
@@ -336,13 +334,23 @@ $shortsResult->free_result(); // Free up memory
   </div>
 </div>
 
-
-
 <script>
 let currentIndex = 0;
+let slideInterval;
 const slidesWrapper = document.getElementById("slidesWrapper");
 const slideItems = slidesWrapper.children;
 const totalSlides = slideItems.length;
+
+// Initialize the carousel
+function initCarousel() {
+  updateSlidePosition();
+  startAutoSlide();
+  
+  // Pause on hover
+  const carousel = document.getElementById('newsSlides');
+  carousel.addEventListener('mouseenter', pauseAutoSlide);
+  carousel.addEventListener('mouseleave', startAutoSlide);
+}
 
 function updateSlidePosition() {
   slidesWrapper.style.transform = `translateX(-${currentIndex * 100}%)`;
@@ -351,37 +359,60 @@ function updateSlidePosition() {
 function nextSlide() {
   if (currentIndex < totalSlides - 1) {
     currentIndex++;
-    updateSlidePosition();
+  } else {
+    currentIndex = 0; // Loop back to first slide
   }
+  updateSlidePosition();
+  resetAutoSlide(); // Reset timer on manual navigation
 }
 
 function prevSlide() {
   if (currentIndex > 0) {
     currentIndex--;
-    updateSlidePosition();
+  } else {
+    currentIndex = totalSlides - 1; // Loop to last slide
   }
+  updateSlidePosition();
+  resetAutoSlide(); // Reset timer on manual navigation
 }
+
+function startAutoSlide() {
+  slideInterval = setInterval(nextSlide, 2000); // Change slide every 2 seconds
+}
+
+function pauseAutoSlide() {
+  clearInterval(slideInterval);
+}
+
+function resetAutoSlide() {
+  clearInterval(slideInterval);
+  startAutoSlide();
+}
+
+// Initialize the carousel when DOM is loaded
+document.addEventListener('DOMContentLoaded', initCarousel);
 </script>
 
    <!-- Advertisement -->
-<div class="md:col-span-3 bg-white border border-gray-200 shadow-sm rounded-lg px-4 py-6 text-center self-start" style="max-width: 300px; height: 350px;">
-  <h3 class="text-lg font-semibold text-gray-700 mb-4">📢 Sponsored Ad</h3>
-  <?php
-  $ad = $conn->prepare("SELECT * FROM news WHERE category = 'Ad' ORDER BY created_at DESC LIMIT 1");
-  $ad->execute();
-  $ad_result = $ad->get_result();
-  if ($ad_row = $ad_result->fetch_assoc()) {
-    echo '<div class="relative w-full h-52 overflow-hidden rounded">';
-    echo '<img src="admin/' . htmlspecialchars($ad_row['image']) . '" alt="Ad" class="object-cover w-full h-full hover:opacity-90 transition" />';
-    echo '<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">';
-    echo '<h4 class="text-white text-sm font-bold line-clamp-2">' . htmlspecialchars($ad_row['title']) . '</h4>';
-    echo '</div>';
-    echo '</div>';
-  } else {
-    echo '<p class="text-sm text-gray-500">No Ads Found</p>';
-  }
-  ?>
-</div>
+   <div class="md:col-span-3 bg-white border border-gray-200 shadow-sm rounded-lg px-4 py-6 text-center self-start" style="max-width: 300px; height: 350px;">
+      <h3 class="text-lg font-semibold text-gray-700 mb-4">📢 Sponsored Ad</h3>
+      <?php
+      $ad = $conn->prepare("SELECT * FROM news WHERE category = 'Ad' AND status = 'public' ORDER BY created_at DESC LIMIT 1");
+      $ad->execute();
+      $ad_result = $ad->get_result();
+      if ($ad_row = $ad_result->fetch_assoc()) {
+        echo '<div class="relative w-full h-52 overflow-hidden rounded">';
+        echo '<img src="admin/' . htmlspecialchars($ad_row['image']) . '" alt="Ad" class="object-cover w-full h-full hover:opacity-90 transition" />';
+        echo '<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">';
+        echo '<h4 class="text-white text-sm font-bold line-clamp-2">' . htmlspecialchars($ad_row['title']) . '</h4>';
+        echo '</div>';
+        echo '</div>';
+      } else {
+        echo '<p class="text-sm text-gray-500">No Ads Found</p>';
+      }
+      ?>
+    </div>
+  </div>
 
 </section>
 
@@ -560,6 +591,7 @@ function prevSlide() {
     </div>
 </section>
 
+<!-- Featured News Section -->
 <section class="mb-12 py-10 max-w-7xl mx-auto px-6">
     <div class="flex items-center justify-between mb-4">
         <h2 class="text-2xl font-bold text-gray-800">📰 Featured News</h2>
@@ -571,14 +603,12 @@ function prevSlide() {
 
     <div id="featuredNewsContainer" class="flex overflow-x-auto space-x-4 scroll-smooth scrollbar-hide">
         <?php
-        // Re-include db.php if it was closed before, otherwise remove this line.
-        // For this example, assuming it's available.
-        // include("admin/db.php");
-        $stmt = $conn->prepare("SELECT * FROM news WHERE category = 'Featured News' ORDER BY created_at DESC LIMIT 10");
+        $stmt = $conn->prepare("SELECT * FROM news WHERE category = 'Featured News' AND status = 'public' ORDER BY created_at DESC LIMIT 10");
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()) {
-            echo '<a href="news-detail.php?id=' . $row['id'] . '" class="w-64 h-64 bg-gray-100 rounded-lg shadow flex-shrink-0 overflow-hidden block">';
+            echo '<div class="w-64 h-64 flex-shrink-0">';
+            echo '<a href="news-detail.php?id=' . $row['id'] . '" class="block w-full h-full bg-gray-100 rounded-lg shadow overflow-hidden">';
             echo '<div class="relative w-full h-full">';
             echo '<img src="admin/' . htmlspecialchars($row['image']) . '" class="object-cover w-full h-full" alt="' . htmlspecialchars($row['title']) . '">';
             echo '<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">';
@@ -586,12 +616,112 @@ function prevSlide() {
             echo '</div>';
             echo '</div>';
             echo '</a>';
+            echo '</div>';
         }
         $stmt->free_result();
-        // If $conn is only used here, you can close it: $conn->close();
         ?>
     </div>
 </section>
+
+<script>
+// Auto-scrolling functionality
+let currentScrollPosition = 0;
+let scrollInterval;
+const scrollAmount = 268; // Width of card (256px) + gap (12px)
+const container = document.getElementById('featuredNewsContainer');
+const newsItems = container.querySelectorAll('div');
+let maxScroll = (newsItems.length - 1) * scrollAmount;
+
+function scrollNewsLeft() {
+    currentScrollPosition = Math.max(0, currentScrollPosition - scrollAmount);
+    container.scrollTo({
+        left: currentScrollPosition,
+        behavior: 'smooth'
+    });
+    resetAutoScroll();
+}
+
+function scrollNewsRight() {
+    currentScrollPosition = Math.min(maxScroll, currentScrollPosition + scrollAmount);
+    container.scrollTo({
+        left: currentScrollPosition,
+        behavior: 'smooth'
+    });
+    resetAutoScroll();
+}
+
+function autoScroll() {
+    if (currentScrollPosition >= maxScroll) {
+        currentScrollPosition = 0;
+        container.scrollTo({
+            left: 0,
+            behavior: 'smooth'
+        });
+    } else {
+        currentScrollPosition += scrollAmount;
+        container.scrollTo({
+            left: currentScrollPosition,
+            behavior: 'smooth'
+        });
+    }
+}
+
+function startAutoScroll() {
+    scrollInterval = setInterval(autoScroll, 2000); // Scroll every 2 seconds
+}
+
+function resetAutoScroll() {
+    clearInterval(scrollInterval);
+    startAutoScroll();
+}
+
+// Pause on hover
+container.addEventListener('mouseenter', () => clearInterval(scrollInterval));
+container.addEventListener('mouseleave', startAutoScroll);
+
+// Initialize
+startAutoScroll();
+</script>
+
+<script>
+// Scroll amount (in pixels) for each button click
+const SCROLL_AMOUNT = 300;
+
+function scrollNewsLeft() {
+    const container = document.getElementById('featuredNewsContainer');
+    container.scrollBy({
+        left: -SCROLL_AMOUNT,
+        behavior: 'smooth'
+    });
+}
+
+function scrollNewsRight() {
+    const container = document.getElementById('featuredNewsContainer');
+    container.scrollBy({
+        left: SCROLL_AMOUNT,
+        behavior: 'smooth'
+    });
+}
+
+// Optional: Disable/enable buttons based on scroll position
+function updateButtonStates() {
+    const container = document.getElementById('featuredNewsContainer');
+    const leftBtn = document.querySelector('button[onclick="scrollNewsLeft()"]');
+    const rightBtn = document.querySelector('button[onclick="scrollNewsRight()"]');
+    
+    // Disable left button if at start
+    leftBtn.disabled = container.scrollLeft <= 0;
+    
+    // Disable right button if at end (or nearly at end)
+    rightBtn.disabled = container.scrollLeft + container.clientWidth >= container.scrollWidth - 10;
+}
+
+// Update button states when scrolling
+document.getElementById('featuredNewsContainer').addEventListener('scroll', updateButtonStates);
+
+// Initialize button states on load
+document.addEventListener('DOMContentLoaded', updateButtonStates);
+</script>
 
 <div id="shortsModal" class="shorts-modal hidden">
     <div class="shorts-modal-content">
@@ -1100,11 +1230,9 @@ function prevSlide() {
     </div>
   </div>
 
-  <!-- Slider Container -->
   <div id="health-slider" class="flex overflow-x-auto space-x-4 scroll-smooth scrollbar-hide">
     <?php
-    include("admin/db.php");
-    $stmt = $conn->prepare("SELECT * FROM news WHERE category = 'Health' ORDER BY created_at DESC LIMIT 10");
+    $stmt = $conn->prepare("SELECT * FROM news WHERE category = 'Health' AND status = 'public' ORDER BY created_at DESC LIMIT 10");
     $stmt->execute();
     $result = $stmt->get_result();
     while ($row = $result->fetch_assoc()) {
@@ -1120,7 +1248,6 @@ function prevSlide() {
     ?>
   </div>
 </section>
-
 <!-- JavaScript for sliding -->
 <script>
   function scrollHealth(direction) {
@@ -1136,9 +1263,7 @@ function prevSlide() {
   <!-- ======= Category Sliders ======= -->
   <section class="mb-12 py-10 max-w-7xl mx-auto px-6">
   <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-
     <?php
-    include("admin/db.php");
     $sections = [
       'Business' => '💼 Business',
       'Technology' => '🧠 Technology',
@@ -1160,7 +1285,7 @@ function prevSlide() {
       </div>
       <div id="scroll-<?php echo strtolower(str_replace(' ', '-', $category)); ?>" class="flex overflow-x-auto space-x-4 scroll-smooth snap-x snap-mandatory pb-2">
         <?php
-        $stmt = $conn->prepare("SELECT * FROM news WHERE category = ? ORDER BY created_at DESC LIMIT 10");
+        $stmt = $conn->prepare("SELECT * FROM news WHERE category = ? AND status = 'public' ORDER BY created_at DESC LIMIT 10");
         $stmt->bind_param("s", $category);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -1178,7 +1303,6 @@ function prevSlide() {
       </div>
     </div>
     <?php endforeach; ?>
-
   </div>
 </section>
 
@@ -1196,19 +1320,15 @@ function prevSlide() {
 <!-- Centered Main Section -->
 <section class="mb-12 py-10 max-w-7xl mx-auto px-6">
   <div class="max-w-7xl mx-auto px-4 flex flex-col lg:flex-row gap-8">
-
-    <!-- 🔥 Trending News - Now on Left -->
     <aside class="lg:w-2/3 w-full">
       <h2 class="text-xl font-semibold text-gray-800 mb-4">🔥 Trending News</h2>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <?php
-        include("admin/db.php");
-        $stmt = $conn->prepare("SELECT * FROM news WHERE category = 'Trending News' ORDER BY created_at DESC LIMIT 4");
+        $stmt = $conn->prepare("SELECT * FROM news WHERE category = 'Trending News' AND status = 'public' ORDER BY created_at DESC LIMIT 4");
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()):
         ?>
-        <!-- News Card -->
         <a href="news-detail.php?id=<?php echo $row['id']; ?>" class="w-full aspect-square relative bg-white rounded shadow overflow-hidden block">
           <img src="admin/<?php echo htmlspecialchars($row['image']); ?>" alt="<?php echo htmlspecialchars($row['title']); ?>" class="w-full h-full object-cover">
           <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
@@ -1241,6 +1361,7 @@ function prevSlide() {
     </div>
   </div>
 </section>
+
 
 <!-- Init feather icons -->
 <script>

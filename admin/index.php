@@ -1,4 +1,4 @@
-  <?php
+<?php
   // session_start();
   // if (!isset($_SESSION['admin'])) {
   //      header("Location: login.php");
@@ -33,6 +33,42 @@
       views INT DEFAULT 1,
       date_viewed DATE DEFAULT (CURRENT_DATE),
       UNIQUE KEY unique_shorts_date (shorts_id, date_viewed),
+      FOREIGN KEY (shorts_id) REFERENCES shorts(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS news_likes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      news_id INT NOT NULL,
+      user_ip VARCHAR(45) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (news_id) REFERENCES news(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_news_like (news_id, user_ip)
+  );
+
+  CREATE TABLE IF NOT EXISTS news_comments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      news_id INT NOT NULL,
+      user_name VARCHAR(100) NOT NULL,
+      comment TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (news_id) REFERENCES news(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS shorts_likes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      shorts_id INT NOT NULL,
+      user_ip VARCHAR(45) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (shorts_id) REFERENCES shorts(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_shorts_like (shorts_id, user_ip)
+  );
+
+  CREATE TABLE IF NOT EXISTS shorts_comments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      shorts_id INT NOT NULL,
+      user_name VARCHAR(100) NOT NULL,
+      comment TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (shorts_id) REFERENCES shorts(id) ON DELETE CASCADE
   );
   ";
@@ -183,673 +219,838 @@
           $dailyNewsData[$index] = (int)$row['daily_count'];
       }
   }
-  ?>
 
-  <!DOCTYPE html>
-  <html lang="en">
-  <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>Dashboard - Karnataka News</title>
-      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-      <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-      <link rel="stylesheet" href="css/style.css?v=<?php echo time(); ?>">
-      
-      <style>
-          body {
-      display: flex;
-      /* Changed to display: block for a more traditional layout where fixed elements don't interfere with flex-box of main content */
-      /* If you still want the `wrapper` to be flex, ensure it's not fighting with fixed positions */
-      min-height: 100vh;
-      margin: 0;
-      padding: 0;
-      background-color: #f8f9fa; /* Light background for overall page */
-  }
+  // NEW: Get engagement statistics
+  $totalNewsLikesQuery = "SELECT COUNT(*) as total FROM news_likes";
+  $totalNewsLikes = $conn->query($totalNewsLikesQuery)->fetch_assoc()['total'];
 
-  .wrapper {
-      display: flex; /* This remains to make sidebar and mainContent side-by-side */
-      width: 100%;
-      flex: 1; /* Allows wrapper to take remaining vertical space */
-  }
+  $totalNewsCommentsQuery = "SELECT COUNT(*) as total FROM news_comments";
+  $totalNewsComments = $conn->query($totalNewsCommentsQuery)->fetch_assoc()['total'];
 
-  /* Assuming sidebar is directly under .wrapper and needs to be fixed */
-  /* Add this to your style.css or ensure your sidebar partial has appropriate classes */
-  .sidebar { /* Replace .sidebar with the actual class/ID of your sidebar element */
-      position: fixed; /* Fix sidebar to the left */
-      top: 0; /* Align to the top */
-      left: 0;
-      width: 250px; /* Adjust sidebar width as needed */
-      height: 100vh; /* Full viewport height */
-      background-color: #343a40; /* Example sidebar background */
-      z-index: 1030; /* Above main content, below navbar if navbar is fixed */
-      padding-top: 56px; /* Adjust if your navbar is also fixed and overlaps */
-      /* Add any other sidebar styles like padding, color, etc. */
-  }
+  $totalShortsLikesQuery = "SELECT COUNT(*) as total FROM shorts_likes";
+  $totalShortsLikes = $conn->query($totalShortsLikesQuery)->fetch_assoc()['total'];
 
-  #mainContent {
-      flex: 1; /* Main content takes up remaining horizontal space */
-      display: flex;
-      flex-direction: column; /* Stack navbar and dashboard content vertically */
-      padding: 0;
-      margin-left: 250px; /* Make space for the fixed sidebar */
-      width: calc(100% - 250px); /* Adjust width to not overflow */
-  }
+  $totalShortsCommentsQuery = "SELECT COUNT(*) as total FROM shorts_comments";
+  $totalShortsComments = $conn->query($totalShortsCommentsQuery)->fetch_assoc()['total'];
 
-  /* Assuming your navbar is included here and needs to be fixed */
-  /* Add this to your style.css or ensure your navbar partial has appropriate classes */
-  .navbar { /* Replace .navbar with the actual class/ID of your navbar element */
-      position: fixed; /* Fix navbar to the top */
-      top: 0;
-      left: 250px; /* Align after the fixed sidebar */
-      width: calc(100% - 250px); /* Span the remaining width */
-      height: 56px; /* Example navbar height, adjust as needed */
-      background-color: #ffffff; /* Example navbar background */
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      z-index: 1020; /* Above main content */
-      /* Add any other navbar styles */
-  }
+  // Get most liked news
+  $mostLikedNewsQuery = "
+  SELECT n.id, n.title, COUNT(nl.id) as like_count 
+  FROM news n 
+  LEFT JOIN news_likes nl ON n.id = nl.news_id 
+  GROUP BY n.id 
+  ORDER BY like_count DESC 
+  LIMIT 5";
+  $mostLikedNews = $conn->query($mostLikedNewsQuery);
 
-  .dashboard-content {
-      flex: 1; /* Takes remaining vertical space within mainContent */
-      padding: 50px;
-      /* REMOVE margin-top, use padding-top on mainContent or here if navbar is part of mainContent */
-      /* If navbar is fixed and NOT inside mainContent, mainContent needs padding-top */
-      padding-top: 76px; /* Adjust this value to push content below your navbar (e.g., 56px navbar + 20px content padding) */
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: calc(100vh - 0px); /* Adjusted for full height */
-      overflow-y: auto; /* Allows scrolling if content overflows */
-  }
+  // Get most commented news
+  $mostCommentedNewsQuery = "
+  SELECT n.id, n.title, COUNT(nc.id) as comment_count 
+  FROM news n 
+  LEFT JOIN news_comments nc ON n.id = nc.news_id 
+  GROUP BY n.id 
+  ORDER BY comment_count DESC 
+  LIMIT 5";
+  $mostCommentedNews = $conn->query($mostCommentedNewsQuery);
 
-  .stats-card {
-      background: rgba(255, 255, 255, 0.95);
-      border-radius: 15px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-  }
+  // Get most liked shorts
+  $mostLikedShortsQuery = "
+  SELECT s.id, s.description, COUNT(sl.id) as like_count 
+  FROM shorts s 
+  LEFT JOIN shorts_likes sl ON s.id = sl.shorts_id 
+  GROUP BY s.id 
+  ORDER BY like_count DESC 
+  LIMIT 5";
+  $mostLikedShorts = $conn->query($mostLikedShortsQuery);
 
-  .stats-card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-  }
+  // Get most commented shorts
+  $mostCommentedShortsQuery = "
+  SELECT s.id, s.description, COUNT(sc.id) as comment_count 
+  FROM shorts s 
+  LEFT JOIN shorts_comments sc ON s.id = sc.shorts_id 
+  GROUP BY s.id 
+  ORDER BY comment_count DESC 
+  LIMIT 5";
+  $mostCommentedShorts = $conn->query($mostCommentedShortsQuery);
+?>
 
-  .chart-container {
-      background: rgba(255, 255, 255, 0.95);
-      border-radius: 15px;
-      padding: 25px;
-      margin-bottom: 30px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 350px;
-  }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dashboard - Karnataka News</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link rel="stylesheet" href="css/style.css?v=<?php echo time(); ?>">
+    
+    <style>
+        body {
+    display: flex;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    background-color: #f8f9fa;
+}
 
-  .stat-number {
-      font-size: 2.5rem;
-      font-weight: bold;
-      color: #2c3e50;
-  }
+.wrapper {
+    display: flex;
+    width: 100%;
+    flex: 1;
+}
 
-  .stat-label {
-      color: #7f8c8d;
-      font-size: 0.9rem;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-  }
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 250px;
+    height: 100vh;
+    background-color: #343a40;
+    z-index: 1030;
+    padding-top: 56px;
+}
 
-  .dashboard-title {
-      color: white;
-      text-align: center;
-      margin-bottom: 30px;
-      font-weight: 300;
-      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-  }
+#mainContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    margin-left: 250px;
+    width: calc(100% - 250px);
+}
 
-  .chart-title {
-      color: #2c3e50;
-      font-weight: 600;
-      margin-bottom: 20px;
-      text-align: center;
-  }
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 250px;
+    width: calc(100% - 250px);
+    height: 56px;
+    background-color: #ffffff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    z-index: 1020;
+}
 
-  .icon-stat {
-      font-size: 3rem;
-      margin-bottom: 15px;
-  }
+.dashboard-content {
+    flex: 9;
+    padding: 50px;
+    padding-top: 76px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: calc(100vh - 0px);
+    overflow-y: auto;
+}
 
-  .no-data-message {
-      text-align: center;
-      color: #6c757d;
-      font-style: italic;
-      padding: 20px;
-      flex-grow: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-  }
+.stats-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
 
-  .engagement-stats {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 10px;
-      padding: 15px;
-      margin-top: 20px;
-      color: white;
-      text-align: center;
-  }
+.stats-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
 
-  @media (max-width: 768px) {
-      .sidebar {
-          width: 0; /* Hide sidebar by default on smaller screens */
-          padding-top: 0;
-          /* You might want to implement a toggle for the sidebar */
-      }
+.chart-container {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 15px;
+    padding: 25px;
+    margin-bottom: 30px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 350px;
+}
 
-      #mainContent {
-          margin-left: 0; /* No margin for sidebar on mobile */
-          width: 100%;
-      }
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #2c3e50;
+}
 
-      .navbar {
-          left: 0; /* Full width navbar on mobile */
-          width: 100%;
-      }
+.stat-label {
+    color: #7f8c8d;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
 
-      .dashboard-content {
-          padding: 15px;
-          padding-top: 70px; /* Adjust for smaller navbar on mobile */
-          min-height: calc(100vh - 0px);
-      }
+.dashboard-title {
+    color: white;
+    text-align: center;
+    margin-bottom: 30px;
+    font-weight: 300;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
 
-      .stat-number {
-          font-size: 2rem;
-      }
-      .chart-container {
-          min-height: 300px;
-      }
-  }
-      </style>
-  </head>
-  <body>
-  <div class="wrapper d-flex">
-      <?php include 'partials/sidebar.php'; ?>
-      <div id="mainContent">
-          <?php include 'partials/navbar.php'; ?>
-          
-          <div class="dashboard-content">
-              <h1 class="dashboard-title">📊 Real-Time Analytics Dashboard</h1>
-              
-              <div class="row mb-4">
-                  <div class="col-md-3">
-                      <div class="stats-card text-center">
-                          <div class="icon-stat text-primary">
-                              <i class="bi bi-eye"></i>
-                          </div>
-                          <div class="stat-number"><?php echo number_format($totalVisits); ?></div>
-                          <div class="stat-label">Monthly Visits</div>
-                      </div>
-                  </div>
-                  <div class="col-md-3">
-                      <div class="stats-card text-center">
-                          <div class="icon-stat text-success">
-                              <i class="bi bi-newspaper"></i>
-                          </div>
-                          <div class="stat-number"><?php echo $totalNews; ?></div>
-                          <div class="stat-label">Total News</div>
-                          <small class="text-muted"><?php echo number_format($totalNewsClicks); ?> total clicks</small>
-                      </div>
-                  </div>
-                  <div class="col-md-3">
-                      <div class="stats-card text-center">
-                          <div class="icon-stat text-warning">
-                              <i class="bi bi-play-circle"></i>
-                          </div>
-                          <div class="stat-number"><?php echo $totalShorts; ?></div>
-                          <div class="stat-label">Total Shorts</div>
-                          <small class="text-muted"><?php echo number_format($totalShortsViews); ?> total views</small>
-                      </div>
-                  </div>
-                  <div class="col-md-3">
-                      <div class="stats-card text-center">
-                          <div class="icon-stat text-info">
-                              <i class="bi bi-calendar-plus"></i>
-                          </div>
-                          <div class="stat-number"><?php echo $todayNews; ?></div>
-                          <div class="stat-label">Today's News</div>
-                      </div>
-                  </div>
-              </div>
+.chart-title {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 20px;
+    text-align: center;
+}
 
-              <div class="row mb-4">
-                  <div class="col-12">
-                      <div class="engagement-stats">
-                          <h4>📈 Real-Time Engagement Metrics</h4>
-                          <div class="row">
-                              <div class="col-md-4">
-                                  <h5><?php echo number_format($totalVisits); ?></h5>
-                                  <small>Page Views (30 days)</small>
-                              </div>
-                              <div class="col-md-4">
-                                  <h5><?php echo number_format($totalNewsClicks); ?></h5>
-                                  <small>News Article Clicks</small>
-                              </div>
-                              <div class="col-md-4">
-                                  <h5><?php echo number_format($totalShortsViews); ?></h5>
-                                  <small>Shorts Video Views</small>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-              
-              <div class="row">
-                  <div class="col-lg-6">
-                      <div class="chart-container">
-                          <h3 class="chart-title">📈 Website Traffic (Last 30 Days)</h3>
-                          <?php if (array_sum($trafficData) > 0): ?>
-                              <canvas id="trafficChart"></canvas>
-                          <?php else: ?>
-                              <div class="no-data-message">
-                                  <i class="bi bi-graph-up" style="font-size: 3rem; color: #ccc;"></i>
-                                  <p>No website traffic recorded yet.</p>
-                                  <small>Traffic will appear as users visit your pages.</small>
-                              </div>
-                          <?php endif; ?>
-                      </div>
-                  </div>
-                  <div class="col-lg-6">
-                      <div class="chart-container">
-                          <h3 class="chart-title">🔥 Most Popular News Articles</h3>
-                          <?php if (!empty($trendingData) && array_sum($trendingData) > 0): ?>
-                              <canvas id="trendingChart"></canvas>
-                          <?php else: ?>
-                              <div class="no-data-message">
-                                  <i class="bi bi-newspaper" style="font-size: 3rem; color: #ccc;"></i>
-                                  <p>No news clicks recorded yet.</p>
-                                  <small>Popularity will show as users click on news articles.</small>
-                              </div>
-                          <?php endif; ?>
-                      </div>
-                  </div>
-              </div>
-              
-              <div class="row">
-                  <div class="col-lg-6">
-                      <div class="chart-container">
-                          <h3 class="chart-title">📰 Daily News Publishing</h3>
-                          <?php if (array_sum($dailyNewsData) > 0): ?>
-                              <canvas id="dailyNewsChart"></canvas>
-                          <?php else: ?>
-                              <div class="no-data-message">
-                                  <i class="bi bi-calendar-plus" style="font-size: 3rem; color: #ccc;"></i>
-                                  <p>No news published in the last 30 days.</p>
-                                  <small>Start publishing news to see daily activity.</small>
-                              </div>
-                          <?php endif; ?>
-                      </div>
-                  </div>
-                  <div class="col-lg-6">
-                      <div class="chart-container">
-                          <h3 class="chart-title">📊 News by Category</h3>
-                          <?php if (!empty($newsStatsData) && array_sum($newsStatsData) > 0): ?>
-                              <canvas id="categoryChart"></canvas>
-                          <?php else: ?>
-                              <div class="no-data-message">
-                                  <i class="bi bi-pie-chart" style="font-size: 3rem; color: #ccc;"></i>
-                                  <p>No categorized news found.</p>
-                                  <small>Add news to different categories to see distribution.</small>
-                              </div>
-                          <?php endif; ?>
-                      </div>
-                  </div>
-              </div>
+.icon-stat {
+    font-size: 3rem;
+    margin-bottom: 15px;
+}
 
-              <div class="row">
-                  <div class="col-lg-12">
-                      <div class="chart-container">
-                          <h3 class="chart-title">🎬 Most Viewed Shorts</h3>
-                          <?php if (!empty($shortsData) && array_sum($shortsData) > 0): ?>
-                              <canvas id="shortsChart"></canvas>
-                          <?php else: ?>
-                              <div class="no-data-message">
-                                  <i class="bi bi-play-circle" style="font-size: 3rem; color: #ccc;"></i>
-                                  <p>No shorts views recorded yet.</p>
-                                  <small>Views will appear as users watch your shorts videos.</small>
-                              </div>
-                          <?php endif; ?>
-                      </div>
-                  </div>
-              </div>
-          </div>
-      </div>
-  </div>
+.no-data-message {
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    padding: 20px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="js/script.js"></script> 
+.engagement-stats {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 15px;
+    margin-top: 20px;
+    color: white;
+    text-align: center;
+}
 
-  <script>
-  // Chart.js Configuration
-  Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
-  Chart.defaults.font.size = 12;
+.engagement-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-top: 15px;
+}
 
-  // Chart colors
-  const chartColors = {
-      primary: '#667eea',
-      success: '#28a745',
-      warning: '#ffc107',
-      info: '#17a2b8',
-      danger: '#dc3545'
-  };
+.engagement-item {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+}
 
-  <?php if (array_sum($trafficData) > 0): ?>
-  // 1. Website Traffic Chart
-  const trafficCtx = document.getElementById('trafficChart').getContext('2d');
-  new Chart(trafficCtx, {
-      type: 'line',
-      data: {
-          labels: <?php echo json_encode($trafficLabels); ?>,
-          datasets: [{
-              label: 'Daily Visits',
-              data: <?php echo json_encode($trafficData); ?>,
-              borderColor: chartColors.primary,
-              backgroundColor: chartColors.primary + '20',
-              borderWidth: 3,
-              fill: true,
-              tension: 0.4,
-              pointBackgroundColor: chartColors.primary,
-              pointBorderColor: '#fff',
-              pointBorderWidth: 2,
-              pointRadius: 4
-          }]
-      },
-      options: {
-          responsive: true,
-          plugins: {
-              legend: {
-                  display: false
-              },
-              tooltip: {
-                  callbacks: {
-                      label: function(context) {
-                          return 'Visits: ' + context.parsed.y;
-                      }
-                  }
-              }
-          },
-          scales: {
-              y: {
-                  beginAtZero: true,
-                  ticks: {
-                      color: '#666',
-                      stepSize: 1 // Ensures steps of 1 for clarity
-                  },
-                  grid: {
-                      color: '#e0e0e0'
-                  }
-              },
-              x: {
-                  ticks: {
-                      color: '#666'
-                  },
-                  grid: {
-                      color: '#e0e0e0'
-                  }
-              }
-          }
-      }
-  });
-  <?php endif; ?>
+.list-group-item {
+    border-left: none;
+    border-right: none;
+}
 
-  <?php if (!empty($trendingData) && array_sum($trendingData) > 0): ?>
-  // 2. Trending News Chart
-  const trendingCtx = document.getElementById('trendingChart').getContext('2d');
-  new Chart(trendingCtx, {
-      type: 'bar',
-      data: {
-          labels: <?php echo json_encode($trendingLabels); ?>,
-          datasets: [{
-              label: 'Clicks',
-              data: <?php echo json_encode($trendingData); ?>,
-              backgroundColor: [
-                  '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
-                  '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF',
-                  '#4BC0C0', '#FF6384'
-              ],
-              borderColor: [
-                  '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
-                  '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF',
-                  '#4BC0C0', '#FF6384'
-              ],
-              borderWidth: 1,
-              borderRadius: 4
-          }]
-      },
-      options: {
-          responsive: true,
-          plugins: {
-              legend: {
-                  display: false
-              },
-              tooltip: {
-                  callbacks: {
-                      label: function(context) {
-                          return 'Clicks: ' + context.parsed.y;
-                      }
-                  }
-              }
-          },
-          scales: {
-              y: {
-                  beginAtZero: true,
-                  ticks: {
-                      color: '#666',
-                      stepSize: 1
-                  },
-                  grid: {
-                      color: '#e0e0e0'
-                  }
-              },
-              x: {
-                  ticks: {
-                      color: '#666',
-                      maxRotation: 45
-                  },
-                  grid: {
-                      display: false
-                  }
-              }
-          }
-      }
-  });
-  <?php endif; ?>
+.list-group-item:first-child {
+    border-top: none;
+}
 
-  <?php if (array_sum($dailyNewsData) > 0): ?>
-  // 3. Daily News Chart
-  const dailyNewsCtx = document.getElementById('dailyNewsChart').getContext('2d');
-  new Chart(dailyNewsCtx, {
-      type: 'bar',
-      data: {
-          labels: <?php echo json_encode($dailyNewsLabels); ?>,
-          datasets: [{
-              label: 'News Published',
-              data: <?php echo json_encode($dailyNewsData); ?>,
-              backgroundColor: chartColors.success + '80',
-              borderColor: chartColors.success,
-              borderWidth: 1,
-              borderRadius: 4
-          }]
-      },
-      options: {
-          responsive: true,
-          plugins: {
-              legend: {
-                  display: false
-              },
-              tooltip: {
-                  callbacks: {
-                      label: function(context) {
-                          return 'Articles: ' + context.parsed.y;
-                      }
-                  }
-              }
-          },
-          scales: {
-              y: {
-                  beginAtZero: true,
-                  ticks: {
-                      color: '#666',
-                      stepSize: 1
-                  },
-                  grid: {
-                      color: '#e0e0e0'
-                  }
-              },
-              x: {
-                  ticks: {
-                      color: '#666'
-                  },
-                  grid: {
-                      display: false
-                  }
-              }
-          }
-      }
-  });
-  <?php endif; ?>
+.list-group-item:last-child {
+    border-bottom: none;
+}
 
-  <?php if (!empty($newsStatsData) && array_sum($newsStatsData) > 0): ?>
-  // 4. Category Chart
-  const categoryCtx = document.getElementById('categoryChart').getContext('2d');
-  new Chart(categoryCtx, {
-      type: 'pie',
-      data: {
-          labels: <?php echo json_encode($newsStatsLabels); ?>,
-          datasets: [{
-              data: <?php echo json_encode($newsStatsData); ?>,
-              backgroundColor: [
-                  '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
-                  '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF',
-                  '#4BC0C0', '#FF6384', '#36A2EB', '#FFCE56'
-              ],
-              borderColor: '#fff',
-              borderWidth: 2
-          }]
-      },
-      options: {
-          responsive: true,
-          plugins: {
-              legend: {
-                  position: 'bottom',
-                  labels: {
-                      padding: 20,
-                      usePointStyle: true,
-                      color: '#666'
-                  }
-              },
-              tooltip: {
-                  callbacks: {
-                      label: function(context) {
-                          return context.label + ': ' + context.parsed + ' articles';
-                      }
-                  }
-              }
-          }
-      }
-  });
-  <?php endif; ?>
+@media (max-width: 768px) {
+    .sidebar {
+        width: 0;
+        padding-top: 0;
+    }
 
-  <?php if (!empty($shortsData) && array_sum($shortsData) > 0): ?>
-  // 5. Shorts Chart
-  const shortsCtx = document.getElementById('shortsChart').getContext('2d');
-  new Chart(shortsCtx, {
-      type: 'doughnut',
-      data: {
-          labels: <?php echo json_encode($shortsLabels); ?>,
-          datasets: [{
-              data: <?php echo json_encode($shortsData); ?>,
-              backgroundColor: [
-                  '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
-                  '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
-              ],
-              borderColor: '#fff',
-              borderWidth: 2
-          }]
-      },
-      options: {
-          responsive: true,
-          plugins: {
-              legend: {
-                  position: 'bottom',
-                  labels: {
-                      padding: 20,
-                      usePointStyle: true,
-                      color: '#666'
-                  }
-              },
-              tooltip: {
-                  callbacks: {
-                      label: function(context) {
-                          return context.label + ': ' + context.parsed + ' views';
-                      }
-                  }
-              }
-          }
-      }
-  });
-  <?php endif; ?>
+    #mainContent {
+        margin-left: 0;
+        width: 100%;
+    }
 
-  // Real-time update check every 30 seconds
-  // Real-time update check every 30 seconds
-  // Real-time update check every 30 seconds
-  setInterval(function() {
-      // Update only the stats without full page reload
-      fetch('get_stats.php') // This will now fetch data from your new file
-          .then(response => {
-              if (!response.ok) {
-                  throw new Error('Network response was not ok ' + response.statusText);
-              }
-              return response.json();
-          })
-          .then(data => {
-              // Update the displayed numbers
-              document.querySelector('.stats-card:nth-child(1) .stat-number').textContent = data.totalVisits.toLocaleString();
-              document.querySelector('.stats-card:nth-child(4) .stat-number').textContent = data.todayNews;
+    .navbar {
+        left: 0;
+        width: 100%;
+    }
 
-              // NEW: Update the Total Shorts card number
-              document.querySelector('.stats-card:nth-child(3) .stat-number').textContent = data.totalShorts;
+    .dashboard-content {
+        padding: 15px;
+        padding-top: 70px;
+        min-height: calc(100vh - 0px);
+    }
 
+    .stat-number {
+        font-size: 2rem;
+    }
+    .chart-container {
+        min-height: 300px;
+    }
+    
+    .engagement-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
 
-              // Update engagement metrics
-              const engagementVisits = document.querySelector('.engagement-stats .col-md-4:nth-child(1) h5');
-              if (engagementVisits) {
-                  engagementVisits.textContent = data.totalVisits.toLocaleString();
-              }
+@media (max-width: 576px) {
+    .engagement-grid {
+        grid-template-columns: 1fr;
+    }
+}
+    </style>
+</head>
+<body>
+<div class="wrapper d-flex">
+    <?php include 'partials/sidebar.php'; ?>
+    <div id="mainContent">
+        <?php include 'partials/navbar.php'; ?>
+        
+        <div class="dashboard-content">
+            <h1 class="dashboard-title">📊 Real-Time Analytics Dashboard</h1>
+            
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <div class="icon-stat text-primary">
+                            <i class="bi bi-eye"></i>
+                        </div>
+                        <div class="stat-number"><?php echo number_format($totalVisits); ?></div>
+                        <div class="stat-label">Monthly Visits</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <div class="icon-stat text-success">
+                            <i class="bi bi-newspaper"></i>
+                        </div>
+                        <div class="stat-number"><?php echo $totalNews; ?></div>
+                        <div class="stat-label">Total News</div>
+                        <small class="text-muted"><?php echo number_format($totalNewsClicks); ?> clicks</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <div class="icon-stat text-warning">
+                            <i class="bi bi-play-circle"></i>
+                        </div>
+                        <div class="stat-number"><?php echo $totalShorts; ?></div>
+                        <div class="stat-label">Total Shorts</div>
+                        <small class="text-muted"><?php echo number_format($totalShortsViews); ?> views</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <div class="icon-stat text-info">
+                            <i class="bi bi-calendar-plus"></i>
+                        </div>
+                        <div class="stat-number"><?php echo $todayNews; ?></div>
+                        <div class="stat-label">Today's News</div>
+                    </div>
+                </div>
+            </div>
 
-              const engagementNewsClicks = document.querySelector('.engagement-stats .col-md-4:nth-child(2) h5');
-              if (engagementNewsClicks) {
-                  engagementNewsClicks.textContent = data.totalNewsClicks.toLocaleString();
-              }
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="engagement-stats">
+                        <h4>📈 Engagement Metrics</h4>
+                        <div class="engagement-grid">
+                            <div class="engagement-item">
+                                <h5><?php echo number_format($totalNewsLikes); ?></h5>
+                                <small>News Likes</small>
+                            </div>
+                            <div class="engagement-item">
+                                <h5><?php echo number_format($totalNewsComments); ?></h5>
+                                <small>News Comments</small>
+                            </div>
+                            <div class="engagement-item">
+                                <h5><?php echo number_format($totalShortsLikes); ?></h5>
+                                <small>Shorts Likes</small>
+                            </div>
+                            <div class="engagement-item">
+                                <h5><?php echo number_format($totalShortsComments); ?></h5>
+                                <small>Shorts Comments</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="chart-container">
+                        <h3 class="chart-title">📈 Website Traffic (Last 30 Days)</h3>
+                        <?php if (array_sum($trafficData) > 0): ?>
+                            <canvas id="trafficChart"></canvas>
+                        <?php else: ?>
+                            <div class="no-data-message">
+                                <i class="bi bi-graph-up" style="font-size: 3rem; color: #ccc;"></i>
+                                <p>No website traffic recorded yet.</p>
+                                <small>Traffic will appear as users visit your pages.</small>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="chart-container">
+                        <h3 class="chart-title">🔥 Most Popular News Articles</h3>
+                        <?php if (!empty($trendingData) && array_sum($trendingData) > 0): ?>
+                            <canvas id="trendingChart"></canvas>
+                        <?php else: ?>
+                            <div class="no-data-message">
+                                <i class="bi bi-newspaper" style="font-size: 3rem; color: #ccc;"></i>
+                                <p>No news clicks recorded yet.</p>
+                                <small>Popularity will show as users click on news articles.</small>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="chart-container">
+                        <h3 class="chart-title">📰 Daily News Publishing</h3>
+                        <?php if (array_sum($dailyNewsData) > 0): ?>
+                            <canvas id="dailyNewsChart"></canvas>
+                        <?php else: ?>
+                            <div class="no-data-message">
+                                <i class="bi bi-calendar-plus" style="font-size: 3rem; color: #ccc;"></i>
+                                <p>No news published in the last 30 days.</p>
+                                <small>Start publishing news to see daily activity.</small>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="chart-container">
+                        <h3 class="chart-title">📊 News by Category</h3>
+                        <?php if (!empty($newsStatsData) && array_sum($newsStatsData) > 0): ?>
+                            <canvas id="categoryChart"></canvas>
+                        <?php else: ?>
+                            <div class="no-data-message">
+                                <i class="bi bi-pie-chart" style="font-size: 3rem; color: #ccc;"></i>
+                                <p>No categorized news found.</p>
+                                <small>Add news to different categories to see distribution.</small>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
 
-              const engagementShortsViews = document.querySelector('.engagement-stats .col-md-4:nth-child(3) h5');
-              if (engagementShortsViews) {
-                  engagementShortsViews.textContent = data.totalShortsViews.toLocaleString();
-              }
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="chart-container">
+                        <h3 class="chart-title">❤️ Most Liked News</h3>
+                        <?php if ($mostLikedNews->num_rows > 0): ?>
+                            <div class="list-group">
+                                <?php while ($row = $mostLikedNews->fetch_assoc()): ?>
+                                    <a href="news-detail.php?id=<?php echo $row['id']; ?>" class="list-group-item list-group-item-action">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><?php echo htmlspecialchars($row['title']); ?></h6>
+                                            <small><?php echo $row['like_count']; ?> likes</small>
+                                        </div>
+                                    </a>
+                                <?php endwhile; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="no-data-message">
+                                <i class="bi bi-heart" style="font-size: 3rem; color: #ccc;"></i>
+                                <p>No news likes recorded yet.</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="chart-container">
+                        <h3 class="chart-title">💬 Most Commented News</h3>
+                        <?php if ($mostCommentedNews->num_rows > 0): ?>
+                            <div class="list-group">
+                                <?php while ($row = $mostCommentedNews->fetch_assoc()): ?>
+                                    <a href="news-detail.php?id=<?php echo $row['id']; ?>" class="list-group-item list-group-item-action">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><?php echo htmlspecialchars($row['title']); ?></h6>
+                                            <small><?php echo $row['comment_count']; ?> comments</small>
+                                        </div>
+                                    </a>
+                                <?php endwhile; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="no-data-message">
+                                <i class="bi bi-chat-square-text" style="font-size: 3rem; color: #ccc;"></i>
+                                <p>No news comments recorded yet.</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
 
-          })
-          .catch(error => console.error('Stats update failed:', error)); // Log detailed error
-  }, 30000);
+            <div class="row mt-4">
+                <div class="col-lg-12">
+                    <div class="chart-container">
+                        <h3 class="chart-title">🎬 Most Viewed Shorts</h3>
+                        <?php if (!empty($shortsData) && array_sum($shortsData) > 0): ?>
+                            <canvas id="shortsChart"></canvas>
+                        <?php else: ?>
+                            <div class="no-data-message">
+                                <i class="bi bi-play-circle" style="font-size: 3rem; color: #ccc;"></i>
+                                <p>No shorts views recorded yet.</p>
+                                <small>Views will appear as users watch your shorts videos.</small>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
 
-  console.log('📊 Real-time analytics dashboard loaded successfully!');
-  console.log('🔄 Auto-refresh enabled every 30 seconds');
-  </script>
+            <div class="row mt-4">
+                <div class="col-lg-6">
+                    <div class="chart-container">
+                        <h3 class="chart-title">❤️ Most Liked Shorts</h3>
+                        <?php if ($mostLikedShorts->num_rows > 0): ?>
+                            <div class="list-group">
+                                <?php while ($row = $mostLikedShorts->fetch_assoc()): ?>
+                                    <a href="#" onclick="openShortsModal(<?php echo $row['id']; ?>)" class="list-group-item list-group-item-action">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><?php echo htmlspecialchars($row['description']); ?></h6>
+                                            <small><?php echo $row['like_count']; ?> likes</small>
+                                        </div>
+                                    </a>
+                                <?php endwhile; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="no-data-message">
+                                <i class="bi bi-heart" style="font-size: 3rem; color: #ccc;"></i>
+                                <p>No shorts likes recorded yet.</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="chart-container">
+                        <h3 class="chart-title">💬 Most Commented Shorts</h3>
+                        <?php if ($mostCommentedShorts->num_rows > 0): ?>
+                            <div class="list-group">
+                                <?php while ($row = $mostCommentedShorts->fetch_assoc()): ?>
+                                    <a href="#" onclick="openShortsModal(<?php echo $row['id']; ?>)" class="list-group-item list-group-item-action">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><?php echo htmlspecialchars($row['description']); ?></h6>
+                                            <small><?php echo $row['comment_count']; ?> comments</small>
+                                        </div>
+                                    </a>
+                                <?php endwhile; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="no-data-message">
+                                <i class="bi bi-chat-square-text" style="font-size: 3rem; color: #ccc;"></i>
+                                <p>No shorts comments recorded yet.</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-  </body>
-  </html>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/script.js"></script> 
+
+<script>
+// Chart.js Configuration
+Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+Chart.defaults.font.size = 12;
+
+// Chart colors
+const chartColors = {
+    primary: '#667eea',
+    success: '#28a745',
+    warning: '#ffc107',
+    info: '#17a2b8',
+    danger: '#dc3545'
+};
+
+<?php if (array_sum($trafficData) > 0): ?>
+// 1. Website Traffic Chart
+const trafficCtx = document.getElementById('trafficChart').getContext('2d');
+new Chart(trafficCtx, {
+    type: 'line',
+    data: {
+        labels: <?php echo json_encode($trafficLabels); ?>,
+        datasets: [{
+            label: 'Daily Visits',
+            data: <?php echo json_encode($trafficData); ?>,
+            borderColor: chartColors.primary,
+            backgroundColor: chartColors.primary + '20',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: chartColors.primary,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return 'Visits: ' + context.parsed.y;
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    color: '#666',
+                    stepSize: 1
+                },
+                grid: {
+                    color: '#e0e0e0'
+                }
+            },
+            x: {
+                ticks: {
+                    color: '#666'
+                },
+                grid: {
+                    color: '#e0e0e0'
+                }
+            }
+        }
+    }
+});
+<?php endif; ?>
+
+<?php if (!empty($trendingData) && array_sum($trendingData) > 0): ?>
+// 2. Trending News Chart
+const trendingCtx = document.getElementById('trendingChart').getContext('2d');
+new Chart(trendingCtx, {
+    type: 'bar',
+    data: {
+        labels: <?php echo json_encode($trendingLabels); ?>,
+        datasets: [{
+            label: 'Clicks',
+            data: <?php echo json_encode($trendingData); ?>,
+            backgroundColor: [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
+                '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF',
+                '#4BC0C0', '#FF6384'
+            ],
+            borderColor: [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
+                '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF',
+                '#4BC0C0', '#FF6384'
+            ],
+            borderWidth: 1,
+            borderRadius: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return 'Clicks: ' + context.parsed.y;
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    color: '#666',
+                    stepSize: 1
+                },
+                grid: {
+                    color: '#e0e0e0'
+                }
+            },
+            x: {
+                ticks: {
+                    color: '#666',
+                    maxRotation: 45
+                },
+                grid: {
+                    display: false
+                }
+            }
+        }
+    }
+});
+<?php endif; ?>
+
+<?php if (array_sum($dailyNewsData) > 0): ?>
+// 3. Daily News Chart
+const dailyNewsCtx = document.getElementById('dailyNewsChart').getContext('2d');
+new Chart(dailyNewsCtx, {
+    type: 'bar',
+    data: {
+        labels: <?php echo json_encode($dailyNewsLabels); ?>,
+        datasets: [{
+            label: 'News Published',
+            data: <?php echo json_encode($dailyNewsData); ?>,
+            backgroundColor: chartColors.success + '80',
+            borderColor: chartColors.success,
+            borderWidth: 1,
+            borderRadius: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return 'Articles: ' + context.parsed.y;
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    color: '#666',
+                    stepSize: 1
+                },
+                grid: {
+                    color: '#e0e0e0'
+                }
+            },
+            x: {
+                ticks: {
+                    color: '#666'
+                },
+                grid: {
+                    display: false
+                }
+            }
+        }
+    }
+});
+<?php endif; ?>
+
+<?php if (!empty($newsStatsData) && array_sum($newsStatsData) > 0): ?>
+// 4. Category Chart
+const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+new Chart(categoryCtx, {
+    type: 'pie',
+    data: {
+        labels: <?php echo json_encode($newsStatsLabels); ?>,
+        datasets: [{
+            data: <?php echo json_encode($newsStatsData); ?>,
+            backgroundColor: [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF',
+                '#4BC0C0', '#FF6384', '#36A2EB', '#FFCE56'
+            ],
+            borderColor: '#fff',
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: {
+                    padding: 20,
+                    usePointStyle: true,
+                    color: '#666'
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return context.label + ': ' + context.parsed + ' articles';
+                    }
+                }
+            }
+        }
+    }
+});
+<?php endif; ?>
+
+<?php if (!empty($shortsData) && array_sum($shortsData) > 0): ?>
+// 5. Shorts Chart
+const shortsCtx = document.getElementById('shortsChart').getContext('2d');
+new Chart(shortsCtx, {
+    type: 'doughnut',
+    data: {
+        labels: <?php echo json_encode($shortsLabels); ?>,
+        datasets: [{
+            data: <?php echo json_encode($shortsData); ?>,
+            backgroundColor: [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
+            ],
+            borderColor: '#fff',
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: {
+                    padding: 20,
+                    usePointStyle: true,
+                    color: '#666'
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return context.label + ': ' + context.parsed + ' views';
+                    }
+                }
+            }
+        }
+    }
+});
+<?php endif; ?>
+
+// Real-time update check every 30 seconds
+setInterval(function() {
+    fetch('get_stats.php')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok ' + response.statusText);
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Update the displayed numbers
+            document.querySelector('.stats-card:nth-child(1) .stat-number').textContent = data.totalVisits.toLocaleString();
+            document.querySelector('.stats-card:nth-child(4) .stat-number').textContent = data.todayNews;
+            document.querySelector('.stats-card:nth-child(3) .stat-number').textContent = data.totalShorts;
+
+            // Update engagement metrics
+            const engagementItems = document.querySelectorAll('.engagement-item h5');
+            if (engagementItems.length >= 4) {
+                engagementItems[0].textContent = data.totalNewsLikes.toLocaleString();
+                engagementItems[1].textContent = data.totalNewsComments.toLocaleString();
+                engagementItems[2].textContent = data.totalShortsLikes.toLocaleString();
+                engagementItems[3].textContent = data.totalShortsComments.toLocaleString();
+            }
+        })
+        .catch(error => console.error('Stats update failed:', error));
+}, 30000);
+
+console.log('📊 Real-time analytics dashboard loaded successfully!');
+console.log('🔄 Auto-refresh enabled every 30 seconds');
+</script>
+
+</body>
+</html>

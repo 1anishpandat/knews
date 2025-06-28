@@ -13,9 +13,10 @@
     </a>
     <div class="collapse" id="newsFeedingMenu">
       <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
-        <li><a href="" class="nav-link"><i class="bi bi-card-text me-2"></i>All News</a></li>
+        <!-- <li><a href="" class="nav-link"><i class="bi bi-card-text me-2"></i>All News</a></li> -->
         <li><a href="add-news.php" class="nav-link"><i class="bi bi-plus-square me-2"></i>Add News</a></li>
-      </ul>
+        <li><a href="" class="nav-link"><i class="bi bi-plus-square me-2"></i>Add Videos</a></li>
+        <li><a href="add-short.php" class="nav-link"><i class="bi bi-plus-square me-2"></i>Add Shorts</a></li>
     </div>
   </li>
 
